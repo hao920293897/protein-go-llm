@@ -1,0 +1,41 @@
+# 基础依赖
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+scikit-learn>=0.24.0
+
+# 深度学习框架
+torch>=2.0.0
+torchvision>=0.15.0
+
+# 图神经网络
+torch-geometric>=2.3.0
+networkx>=2.6.0
+
+# Transformer模型
+transformers>=4.30.0
+sentence-transformers>=2.2.0
+
+# 生物信息学
+biopython>=1.79
+
+# 蛋白质语言模型 (可选)
+# fair-esm>=2.0.0  # ESM-2模型，需要单独安装
+
+# GO工具 (可选)
+# goatools>=1.2.0  # GO本体解析
+
+# 可视化
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# 工具库
+tqdm>=4.62.0
+pyyaml>=5.4.0
+
+# 性能优化
+numba>=0.54.0
+
+# API调用 (可选)
+# anthropic>=0.3.0  # Claude API
+# openai>=0.27.0    # GPT API

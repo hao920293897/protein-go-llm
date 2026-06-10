@@ -1,0 +1,76 @@
+{
+    "description": "蛋白质GO预测Pipeline配置文件",
+
+    "baseline": {
+        "use_esm": false,
+        "use_structure": false,
+        "baseline_weights": [0.6, 0.4],
+        "top_k": 200,
+        "rerun": false
+    },
+
+    "knowledge_graph": {
+        "rebuild": false,
+        "go_obo_file": null,
+        "min_interpro_go_support": 3,
+        "include_ppi": true,
+        "ppi_score_threshold": 0.4,
+        "add_sequence_similarity_edges": false,
+        "sequence_similarity_top_k": 5,
+        "sequence_similarity_threshold": 0.75,
+        "sequence_similarity_kmer_size": 3,
+        "sequence_similarity_max_features": null
+    },
+
+    "kg_rag": {
+        "max_paths_per_pair": 5,
+        "max_path_length": 4,
+        "metapath_schemas": [
+            ["protein", "interpro", "go_term"],
+            ["protein", "gene", "gene", "protein", "go_term"]
+        ],
+        "reasoning_alpha": 0.6,
+        "use_gnn": false,
+        "gnn_config": {
+            "hidden_channels": 256,
+            "num_layers": 2,
+            "dropout": 0.5,
+            "learning_rate": 0.001,
+            "epochs": 50
+        },
+        "rerun_retrieval": false,
+        "rerun_reasoning": false
+    },
+
+    "llm_reranking": {
+        "enabled": true,
+        "model_name": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
+        "max_length": 512,
+        "train": false,
+        "training_config": {
+            "learning_rate": 1e-5,
+            "weight_decay": 0.01,
+            "epochs": 3,
+            "batch_size": 16,
+            "use_validation_set": true
+        },
+        "fusion_weights": {
+            "baseline": 0.6,
+            "llm": 0.4
+        },
+        "top_k_for_reranking": 100,
+        "rerun": false
+    },
+
+    "evaluation": {
+        "metrics": ["precision", "recall", "f1", "auc_pr"],
+        "top_k_values": [10, 20, 50, 100],
+        "save_detailed_results": true
+    },
+
+    "output": {
+        "save_intermediate_results": true,
+        "save_evidence_paths": true,
+        "save_format": "json"
+    }
+}
