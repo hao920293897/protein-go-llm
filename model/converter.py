@@ -41,7 +41,8 @@ class KGToPyGConverter:
                                text_embeddings: Optional[Dict[str, Dict[str, np.ndarray]]] = None,
                                text_embedding_model_name: str = 'sentence-transformers/all-MiniLM-L6-v2',
                                task_mode: str = 'link_prediction',
-                               add_reverse_edges: bool = True) -> HeteroData:
+                               add_reverse_edges: bool = True,
+                               add_interpro_onehot_to_protein: bool = False) -> HeteroData:
         """
         转换为PyG的HeteroData格式
 
@@ -54,6 +55,8 @@ class KGToPyGConverter:
             task_mode: 'node_classification'或'link_prediction'。
                 节点分类时不包含GO节点，链路预测时包含GO节点。
             add_reverse_edges: 是否为异构关系添加反向边，便于目标节点聚合邻居信息
+            add_interpro_onehot_to_protein: 是否给蛋白质节点追加InterPro one-hot特征。
+                非蛋白节点会追加同长度零向量，以保持所有节点类型输入维度一致。
 
         Returns:
             HeteroData对象
@@ -78,6 +81,9 @@ class KGToPyGConverter:
             text_embeddings=text_embeddings,
             task_mode=task_mode
         )
+
+        if add_interpro_onehot_to_protein:
+            self._append_interpro_onehot_features(data, task_mode=task_mode)
 
         # 添加边
         self._add_edges(data, task_mode=task_mode, add_reverse_edges=add_reverse_edges)
@@ -150,6 +156,50 @@ class KGToPyGConverter:
             data[node_type].node_ids = node_ids
 
             print(f"  {node_type}: {num_nodes} nodes, feature_dim={feature_dim}")
+
+    def _append_interpro_onehot_features(self, data: HeteroData, task_mode: str):
+        """给protein节点追加InterPro one-hot，其他节点类型追加零向量。"""
+        print("追加蛋白质InterPro one-hot特征...")
+
+        node_types = self._get_node_types(task_mode)
+        interpro_ids = self.node_type_to_ids[self.kg.NODE_INTERPRO]
+        interpro_to_idx = {
+            interpro_id: idx
+            for idx, interpro_id in enumerate(interpro_ids)
+        }
+        num_interpros = len(interpro_ids)
+
+        if num_interpros == 0:
+            print("  InterPro节点为空，跳过one-hot追加")
+            return
+
+        protein_ids = self.node_type_to_ids[self.kg.NODE_PROTEIN]
+        protein_features = torch.zeros((len(protein_ids), num_interpros), dtype=torch.float)
+
+        for protein_idx, protein_id in enumerate(protein_ids):
+            for neighbor_id in self.kg.graph.successors(protein_id):
+                edge_datas = self.kg.graph.get_edge_data(protein_id, neighbor_id)
+                if not edge_datas:
+                    continue
+                for edge_data in edge_datas.values():
+                    if edge_data.get('edge_type') != self.kg.EDGE_PROTEIN_INTERPRO:
+                        continue
+                    interpro_idx = interpro_to_idx.get(neighbor_id)
+                    if interpro_idx is not None:
+                        protein_features[protein_idx, interpro_idx] = 1.0
+
+        for node_type in node_types:
+            if node_type == self.kg.NODE_PROTEIN:
+                extra = protein_features
+            else:
+                extra = torch.zeros((data[node_type].num_nodes, num_interpros), dtype=torch.float)
+            data[node_type].x = torch.cat([data[node_type].x, extra], dim=1)
+
+        data[self.kg.NODE_PROTEIN].interpro_vocab = interpro_ids
+        print(
+            f"  追加 {num_interpros} 维InterPro one-hot；"
+            f"protein feature_dim={data[self.kg.NODE_PROTEIN].x.size(1)}"
+        )
 
     def _add_edges(self,
                    data: HeteroData,
