@@ -42,6 +42,30 @@
         "rerun_reasoning": false
     },
 
+    "node_classification": {
+        "text_embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+        "rebuild_text_embeddings": false,
+        "rebuild_pyg_data": false,
+        "add_interpro_onehot_to_protein": false,
+        "node_feature_mode": "text+learnable",
+        "learnable_node_dim": 128,
+        "gnn_type": "sage",
+        "hidden_channels": 256,
+        "num_layers": 2,
+        "dropout": 0.5,
+        "num_heads": 4,
+        "rgcn_num_bases": null,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "epochs": 50,
+        "patience": 10,
+        "use_pos_weight": true,
+        "use_el_loss": false,
+        "el_loss_weight": 0.0,
+        "go_norm_file": null,
+        "el_margin": 0.1
+    },
+
     "llm_reranking": {
         "enabled": true,
         "model_name": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",

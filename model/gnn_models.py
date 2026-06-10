@@ -275,6 +275,9 @@ class ProteinGONodeClassifier(nn.Module):
                  edge_types: List[tuple],
                  in_channels: int,
                  num_go_terms: int,
+                 num_nodes_dict: Optional[Dict[str, int]] = None,
+                 node_feature_mode: str = 'text',
+                 learnable_node_dim: int = 128,
                  hidden_channels: int = 256,
                  num_layers: int = 2,
                  dropout: float = 0.5,
@@ -288,8 +291,12 @@ class ProteinGONodeClassifier(nn.Module):
         Args:
             node_types: 节点类型，节点分类任务通常为protein/gene/interpro
             edge_types: PyG异构边类型
-            in_channels: 文本节点特征维度
+            in_channels: 送入GNN前的节点特征维度；text+learnable时应为
+                fixed text dim + learnable_node_dim
             num_go_terms: 训练集GO标签数量
+            num_nodes_dict: 每种节点类型的节点数量，用于可训练node embedding
+            node_feature_mode: 'text'、'learnable'或'text+learnable'
+            learnable_node_dim: 可训练node embedding维度
             hidden_channels: GNN隐藏维度
             num_layers: GNN层数
             dropout: Dropout率
@@ -301,6 +308,25 @@ class ProteinGONodeClassifier(nn.Module):
             el_margin: EL几何约束margin
         """
         super().__init__()
+
+        self.node_types = node_types
+        self.node_feature_mode = node_feature_mode.lower()
+        self.learnable_node_dim = learnable_node_dim
+
+        if self.node_feature_mode not in {'text', 'learnable', 'text+learnable'}:
+            raise ValueError(
+                f"Unsupported node_feature_mode={node_feature_mode}. "
+                "Expected one of: 'text', 'learnable', 'text+learnable'."
+            )
+
+        self.node_embeddings = nn.ModuleDict()
+        if self.node_feature_mode in {'learnable', 'text+learnable'}:
+            if not num_nodes_dict:
+                raise ValueError("num_nodes_dict is required when using learnable node embeddings")
+            for node_type in node_types:
+                emb = nn.Embedding(int(num_nodes_dict[node_type]), learnable_node_dim)
+                nn.init.xavier_uniform_(emb.weight)
+                self.node_embeddings[node_type] = emb
 
         self.gnn = HeteroGNN(
             node_types=node_types,
@@ -330,8 +356,28 @@ class ProteinGONodeClassifier(nn.Module):
         nn.init.uniform_(self.go_rad.weight, -k, k)
         nn.init.uniform_(self.rel_embed.weight, -k, k)
 
+    def _compose_x_dict(self, x_dict):
+        """组合fixed node features和可训练node embeddings。"""
+        if self.node_feature_mode == 'text':
+            return x_dict
+
+        out = {}
+        for node_type in self.node_types:
+            learned = self.node_embeddings[node_type].weight
+
+            if self.node_feature_mode == 'learnable':
+                out[node_type] = learned
+                continue
+
+            if node_type not in x_dict:
+                raise KeyError(f"Missing fixed features for node type: {node_type}")
+            out[node_type] = torch.cat([x_dict[node_type], learned], dim=-1)
+
+        return out
+
     def encode(self, x_dict, edge_index_dict):
         """输出各类型节点的GNN表示。"""
+        x_dict = self._compose_x_dict(x_dict)
         return self.gnn(x_dict, edge_index_dict)
 
     def forward(self, x_dict, edge_index_dict, protein_indices: Optional[torch.Tensor] = None):

@@ -90,6 +90,9 @@ class ProteinGOPredictionPipeline:
             'text_embedding_model': ('node_classification', 'text_embedding_model'),
             'rebuild_text_embeddings': ('node_classification', 'rebuild_text_embeddings'),
             'rebuild_pyg_data': ('node_classification', 'rebuild_pyg_data'),
+            'add_interpro_onehot_to_protein': ('node_classification', 'add_interpro_onehot_to_protein'),
+            'node_feature_mode': ('node_classification', 'node_feature_mode'),
+            'learnable_node_dim': ('node_classification', 'learnable_node_dim'),
             'hidden_channels': ('node_classification', 'hidden_channels'),
             'num_layers': ('node_classification', 'num_layers'),
             'dropout': ('node_classification', 'dropout'),
@@ -327,7 +330,8 @@ class ProteinGOPredictionPipeline:
             raise RuntimeError("请先生成或加载文本节点特征")
 
         gnn_dir = self.output_dir / "node_classification"
-        data_path = gnn_dir / "hetero_data_node_classification.pt"
+        interpro_suffix = "_with_interpro_onehot" if self._cfg('add_interpro_onehot_to_protein', False) else ""
+        data_path = gnn_dir / f"hetero_data_node_classification{interpro_suffix}.pt"
 
         if data_path.exists() and not self._cfg('rebuild_pyg_data', False):
             print(f"加载已有PyG数据: {data_path}")
@@ -338,7 +342,8 @@ class ProteinGOPredictionPipeline:
                 use_text_embeddings=True,
                 text_embeddings=self.node_embeddings,
                 task_mode='node_classification',
-                add_reverse_edges=True
+                add_reverse_edges=True,
+                add_interpro_onehot_to_protein=self._cfg('add_interpro_onehot_to_protein', False)
             )
             torch.save(self.hetero_data, data_path)
             print(f"PyG数据已保存: {data_path}")
@@ -360,7 +365,24 @@ class ProteinGOPredictionPipeline:
         history_path = gnn_dir / "training_history.json"
 
         data = self.hetero_data
-        in_channels = data['protein'].x.size(1)
+        fixed_feature_dim = data['protein'].x.size(1)
+        node_feature_mode = self._cfg('node_feature_mode', 'text+learnable')
+        learnable_node_dim = self._cfg('learnable_node_dim', 128)
+        if node_feature_mode == 'text':
+            in_channels = fixed_feature_dim
+        elif node_feature_mode == 'learnable':
+            in_channels = learnable_node_dim
+        elif node_feature_mode == 'text+learnable':
+            in_channels = fixed_feature_dim + learnable_node_dim
+        else:
+            raise ValueError(
+                f"Unsupported node_feature_mode={node_feature_mode}. "
+                "Expected one of: text, learnable, text+learnable."
+            )
+        num_nodes_dict = {
+            node_type: data[node_type].num_nodes
+            for node_type in data.node_types
+        }
         num_go_terms = data['protein'].y.size(1)
         go_normal_forms = None
         num_el_classes = num_go_terms
@@ -413,6 +435,9 @@ class ProteinGOPredictionPipeline:
             edge_types=data.edge_types,
             in_channels=in_channels,
             num_go_terms=num_go_terms,
+            num_nodes_dict=num_nodes_dict,
+            node_feature_mode=node_feature_mode,
+            learnable_node_dim=learnable_node_dim,
             hidden_channels=self._cfg('hidden_channels', 256),
             num_layers=self._cfg('num_layers', 2),
             dropout=self._cfg('dropout', 0.5),
@@ -480,6 +505,10 @@ class ProteinGOPredictionPipeline:
                     'node_types': data.node_types,
                     'edge_types': data.edge_types,
                     'in_channels': in_channels,
+                    'fixed_feature_dim': fixed_feature_dim,
+                    'node_feature_mode': node_feature_mode,
+                    'learnable_node_dim': learnable_node_dim,
+                    'num_nodes_dict': num_nodes_dict,
                     'num_go_terms': num_go_terms,
                     'go_vocab': data['protein'].go_vocab,
                     'config': self.config
@@ -1002,8 +1031,12 @@ def main():
 
             # 节点分类GNN设置
             'text_embedding_model': 'sentence-transformers/all-MiniLM-L6-v2',
+            'use_el_loss': False,
             'rebuild_text_embeddings': False,
             'rebuild_pyg_data': False,
+            'add_interpro_onehot_to_protein': False,
+            'node_feature_mode': 'text+learnable',
+            'learnable_node_dim': 128,
             'hidden_channels': 256,
             'num_layers': 2,
             'dropout': 0.5,
