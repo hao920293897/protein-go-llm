@@ -1,0 +1,32 @@
+{
+  "gnn_only_mode": true,
+  "rebuild_kg": true,
+  "go_obo_file": null,
+  "ppi_min_score": 0.9,
+  "ppi_min_dscore_or_escore": 0.7,
+  "go_annotation_field": "prop_annotations",
+  "go_terms_file": "/home/zhangluhao/workspace/deepgozero-main/data/mf/terms.pkl",
+  "go_eval_terms_file": "/home/zhangluhao/workspace/deepgozero-main/data/mf/terms_zero_10.pkl",
+  "gnn_epochs": 2,
+  "gnn_hidden_channels": 64,
+  "gnn_num_layers": 2,
+  "gnn_dropout": 0.2,
+  "gnn_lr": 0.001,
+  "gnn_weight_decay": 0.0001,
+  "gnn_seed": 42,
+  "gnn_train_pos_limit_per_relation": 500,
+  "gnn_eval_pos_limit_per_relation": 1000,
+  "gnn_negative_multiplier": 1.5,
+  "gnn_eval_every": 1,
+  "gnn_annotation_field": "prop_annotations",
+  "gnn_terms_file": "/home/zhangluhao/workspace/deepgozero-main/data/mf/terms.pkl",
+  "gnn_eval_terms_file": "/home/zhangluhao/workspace/deepgozero-main/data/mf/terms_zero_10.pkl",
+  "gnn_target_relations": [
+    "protein|annotated_with|go_term",
+    "protein|has_domain|interpro",
+    "interpro|associated_with|go_term",
+    "gene|gene_interaction|gene"
+  ],
+  "use_gnn": true,
+  "use_llm_reranking": false
+}
